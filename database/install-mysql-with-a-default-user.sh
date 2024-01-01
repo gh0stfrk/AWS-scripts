@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 
-echo "Running with superuser privileges!"
+echo "Started Running with superuser privileges!"
 
 
 # Adding mysql's redhat repository to the list.
@@ -27,15 +27,19 @@ sudo echo 'bind-address = 0.0.0.0' >> /etc/my.cnf
 sudo service mysqld restart 
 
 
-log_line=$(grep 'temporary password' /var/log/mysqld.log)
+log_line=$(sudo grep 'temporary password' /var/log/mysqld.log)
 # Extracting the password using awk and removing leading/trailing spaces
 password=$(echo "$log_line" | awk -F ": " '{print $NF}' | awk '{gsub(/^[ \t]+|[ \t]+$/, ""); print}')
 
 # Displaying the extracted password
-# echo "Extracted Password: $password"
+# echo "Temporary root Password Extracted: $password"
+sqluser='sal'
+sqlpassword='p@ssW0rd'
 
-
-mysql -u root -p$password -h localhost -e "CREATE USER 'sal'@'localhost' IDENTIFIED BY 'password';
-GRANT ALL PRIVILEGES ON your_database.* TO 'new_user'@'localhost';
+# Create a deafault user 
+mysql -u root -p$password -h localhost -e "USE mysql;CREATE USER '$sqluser'@'%' IDENTIFIED BY '$sqlpassword';
+GRANT ALL PRIVILEGES ON *.* TO 'sal'@'%';
 FLUSH PRIVILEGES;"
 
+# Cleanig up
+echo 'MySQL user account created';
