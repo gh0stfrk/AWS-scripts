@@ -1,4 +1,6 @@
-# AWS scripts to speed up setup processes
+# AWS scripts
 
-- Setting up a mysql server on amazon linux with a bash script 
+Find my work, if you like it hire me :)
+
+
 

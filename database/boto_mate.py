@@ -1,40 +1,56 @@
+import os
 import boto3
+from dotenv import load_dotenv
 
-# Set your AWS credentials and region
-aws_access_key = 'your_access_key'
-aws_secret_key = 'your_secret_key'
-region_name = 'your_region'
+load_dotenv()
 
-# Set the AMI ID, instance type, key pair name, and security group IDs
-ami_id = 'ami-xxxxxxxxxxxxxxxxx'  # Replace with your AMI ID
-instance_type = 't2.micro'        # Choose your instance type
+aws_access_key = os.getenv("aws_access_key")
+aws_secret_key = os.getenv("aws_secret_key")
+region_name = 'ap-south-1'
+ami_id = 'ami-0d980397a6e8935cd'
+instance_type = 't2.micro'
+key_pair_name = 'NewInstanceKey'   
+private_key_file = f"{key_pair_name}.pem"
 
-# Create an key-pair before running this script
-# Will have to use the key pair to connect to instance later.
-key_pair_name = 'your_key_pair'   # Replace with your key pair name
-# Same goes with security-group create a security group and attach it
-# here with group-id
-security_group_ids = ['sg-xxxxxxxxxxxxxxxxx']  # Replace with your security group IDs
 
-# Create a new EC2 client
-ec2_client = boto3.client('ec2', aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name=region_name)
+ec2_resource = boto3.resource('ec2', aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name=region_name)
 
-# Launch a new EC2 instance
-response = ec2_client.run_instances(
-    ImageId=ami_id,
-    InstanceType=instance_type,
-    KeyName=key_pair_name,
-    MinCount=1,
-    MaxCount=1,
-    SecurityGroupIds=security_group_ids,
-)
 
-# Get the instance ID from the response
-instance_id = response['Instances'][0]['InstanceId']
+existing_key_pairs = [key.name for key in ec2_resource.key_pairs.all()]
+if key_pair_name not in existing_key_pairs:
+    key_pair = ec2_resource.create_key_pair(KeyName=key_pair_name)
+    with open(private_key_file, 'w') as key_file:
+        key_file.write(key_pair.key_material)
+    os.chmod(private_key_file, 0o400)
+    print(f"Key pair '{key_pair_name}' created and private key saved.\n")
+else:
+    print(f"Key pair '{key_pair_name}' already exists.\n")
 
-print(f"Instance {instance_id} is launching.")
+existing_instances = [instance.id for instance in ec2_resource.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])]
+if not existing_instances:
+    instance = ec2_resource.create_instances(
+        ImageId=ami_id,
+        InstanceType=instance_type,
+        KeyName=key_pair_name,
+        MinCount=1,
+        MaxCount=1,
+    )[0]  
+    instance_id = instance.id
+    print(f"Instance {instance_id} is launching.\n")
+    instance.wait_until_running()
+    print(f"Instance {instance_id} is now running.\n")
+    public_ip = instance.public_ip_address
+    ssh_command = f"ssh -i {private_key_file} ec2-user@{public_ip}"
+    print(f"SSH command: {ssh_command}\n")
+else:
+    print(f"An existing running instance was found. No new instance launched.\n")
+    instance_id = existing_instances[0]
+    
+    ec2_client = boto3.client('ec2', aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name=region_name)   
+    instance = ec2_resource.Instance(instance_id)
 
-# Wait for the instance to be running
-ec2_client.get_waiter('instance_running').wait(InstanceIds=[instance_id])
-
-print(f"Instance {instance_id} is now running.")
+    instance_ip_address = instance.public_ip_address
+    print(f"Instance {instance_id} is running at IP address {instance_ip_address}.\n")
+    
+    ssh_command = f"ssh -i {private_key_file} ec2-user@{instance_ip_address}"
+    print(f"SSH command:\n{ssh_command}")

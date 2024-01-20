@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+# Install mysql on Amazon Linux
 
 # Check if script is run as root
 if [ "$EUID" -ne 0 ]; then
@@ -20,8 +21,8 @@ sudo service mysqld start
 
 # Login without password 
 # sudo echo 'skip-grant-tables' >> /etc/my.cnf
-
 # Allows you to connect to the database with the public ip
+
 sudo echo 'bind-address = 0.0.0.0' >> /etc/my.cnf
 
 sudo service mysqld restart 
